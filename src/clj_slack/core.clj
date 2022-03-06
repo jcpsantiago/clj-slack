@@ -1,25 +1,29 @@
 (ns clj-slack.core
   (:require
-   [clj-http.client :as http]
-   [clojure.data.json :as json]
-   [clojure.tools.logging :as log])
-  (:import [java.net URLEncoder]))
+    [clj-http.client :as http]
+    [clojure.data.json :as json]
+    [clojure.tools.logging :as log])
+  (:import
+    (java.net
+      URLEncoder)))
 
 
 (defn verify-api-url
   [connection]
   (assert
-   (and (string? (:api-url connection))
-        (and (not (empty? (:api-url connection)))
-             (not (nil? (re-find #"^https?:\/\/" (:api-url connection))))))
-   (str "clj-slack: API URL is not valid. :api-url has to be a valid URL (https://slack.com/api usually), but is " (pr-str (:api-url connection)))))
+    (and (string? (:api-url connection))
+         (and (not (empty? (:api-url connection)))
+              (not (nil? (re-find #"^https?:\/\/" (:api-url connection))))))
+    (str "clj-slack: API URL is not valid. :api-url has to be a valid URL (https://slack.com/api usually), but is " (pr-str (:api-url connection)))))
+
 
 (defn verify-token
   [connection]
   (assert
-   (and (string? (:token connection))
-        (not (empty? (:token connection))))
-   (str "clj-slack: Access token is not valid. :token has to be a non-empty string, but is " (pr-str (:token connection)))))
+    (and (string? (:token connection))
+         (not (empty? (:token connection))))
+    (str "clj-slack: Access token is not valid. :token has to be a non-empty string, but is " (pr-str (:token connection)))))
+
 
 (defn verify
   "Checks the connection map"
@@ -28,6 +32,7 @@
   (when (not (contains? connection :skip-token-validation))
     (verify-token connection))
   connection)
+
 
 (defn- send-request
   "Sends a GET http request with formatted params.
@@ -40,6 +45,7 @@
       (json/read-str body :key-fn clojure.core/keyword)
       (log/error "Error from Slack API:" (:error response)))))
 
+
 (defn- send-post-request
   "Sends a POST http request with formatted params.
   Optional request options can be specified which will be passed to `clj-http` without any changes.
@@ -49,6 +55,7 @@
                                        opts))]
     (json/read-str (:body response) :key-fn clojure.core/keyword)))
 
+
 (defn- make-query-string
   "Transforms a map into url params"
   [m]
@@ -57,10 +64,12 @@
        (interpose "&")
        (apply str)))
 
+
 (defn- build-params
   "Builds the full URL (endpoint + params)"
   ([connection endpoint query-map]
-   (str "/" endpoint "?token=" (:token (verify connection)) "&" (make-query-string query-map))))
+   (str "/" endpoint "?" (make-query-string query-map))))
+
 
 (defn- build-multiparts
   "Builds an http-kit multiparts sequence"
@@ -70,6 +79,7 @@
       {:name k :content v :filename (.getName v) :encoding "UTF-8"}
       {:name k :content v :encoding "UTF-8"})))
 
+
 (defn stringify-keys
   "Creates a new map whose keys are all strings."
   [m]
@@ -78,14 +88,17 @@
                [(name k) v]
                [(str k) v]))))
 
+
 (defn- request-options
   "Extracts request options from slack connection map.
   Provides sensible defaults for timeouts."
   [connection]
   (let [default-options {:conn-timeout 60000
-                         :socket-timeout 60000}]
+                         :socket-timeout 60000
+                         :headers {:authorization (str "Bearer " (:token connection))}}]
     (merge default-options
            (dissoc connection :api-url :token))))
+
 
 (defn slack-request
   ([connection endpoint]
@@ -105,4 +118,3 @@
                                stringify-keys
                                build-multiparts)]
     (send-post-request url multiparts-params (request-options connection))))
-
